@@ -27,4 +27,5 @@
     </div>
     <div style="text-align: left;"> 
     <h2 style="border-bottom: 1px solid #d8dee4; color: #282d33;"> 🏅 Stats </h2> 
+        <a href="https://www.git-ranker.com/ko/users/Mercel4"><img src="https://www.git-ranker.com/api/v1/badges/U_kgDODJC_xQ" alt="Git Ranker Badge" /></a>
     </div>
