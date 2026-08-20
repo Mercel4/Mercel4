@@ -1,0 +1,499 @@
+name: Update Contribution Card
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    # Every day at 09:15 KST
+    - cron: "15 0 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  update-card:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate contribution card
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python <<'PY'
+          import os
+          import json
+          import urllib.request
+          from pathlib import Path
+          from datetime import datetime, timezone, timedelta
+
+          USERNAME = "Mercel4"
+
+          token = os.environ["GH_TOKEN"]
+
+          query = """
+          query($login: String!) {
+            user(login: $login) {
+              contributionsCollection {
+                restrictedContributionsCount
+
+                contributionCalendar {
+                  totalContributions
+
+                  weeks {
+                    contributionDays {
+                      date
+                      contributionCount
+                      contributionLevel
+                    }
+                  }
+                }
+              }
+            }
+          }
+          """
+
+          payload = json.dumps({
+              "query": query,
+              "variables": {
+                  "login": USERNAME
+              }
+          }).encode("utf-8")
+
+          request = urllib.request.Request(
+              "https://api.github.com/graphql",
+              data=payload,
+              headers={
+                  "Authorization": f"Bearer {token}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "github-contribution-card"
+              },
+              method="POST"
+          )
+
+          with urllib.request.urlopen(request) as response:
+              result = json.loads(response.read().decode("utf-8"))
+
+          if "errors" in result:
+              raise RuntimeError(
+                  json.dumps(result["errors"], ensure_ascii=False, indent=2)
+              )
+
+          user = result.get("data", {}).get("user")
+
+          if not user:
+              raise RuntimeError(f"GitHub user @{USERNAME} was not found.")
+
+          collection = user["contributionsCollection"]
+          calendar = collection["contributionCalendar"]
+
+          total = calendar["totalContributions"]
+          restricted = collection["restrictedContributionsCount"]
+          weeks = calendar["weeks"]
+
+          formatted_total = f"{total:,}"
+
+          # -----------------------------------------
+          # Contribution colors
+          # -----------------------------------------
+
+          COLORS = {
+              "NONE": "#21262d",
+              "FIRST_QUARTILE": "#0e4429",
+              "SECOND_QUARTILE": "#006d32",
+              "THIRD_QUARTILE": "#26a641",
+              "FOURTH_QUARTILE": "#39d353",
+          }
+
+          # Show the latest 9 weeks on the card.
+          recent_weeks = weeks[-9:]
+
+          squares = []
+
+          start_x = 500
+          start_y = 115
+
+          size = 18
+          gap = 7
+          pitch = size + gap
+
+          for week_index, week in enumerate(recent_weeks):
+              days = week["contributionDays"]
+
+              for day_index, day in enumerate(days):
+                  x = start_x + week_index * pitch
+                  y = start_y + day_index * pitch
+
+                  level = day["contributionLevel"]
+                  color = COLORS.get(level, "#21262d")
+
+                  count = day["contributionCount"]
+                  date = day["date"]
+
+                  squares.append(
+                      f'''
+                      <rect
+                        x="{x}"
+                        y="{y}"
+                        width="{size}"
+                        height="{size}"
+                        rx="4"
+                        fill="{color}"
+                      >
+                        <title>{date}: {count} contributions</title>
+                      </rect>
+                      '''
+                  )
+
+          squares_svg = "\n".join(squares)
+
+          if restricted > 0:
+              privacy_badge = "PUBLIC + PRIVATE"
+              privacy_text = "Private contribution counts included"
+          else:
+              privacy_badge = "PUBLIC"
+              privacy_text = "Public contributions"
+
+          # Korea Standard Time
+          kst = timezone(timedelta(hours=9))
+          updated_at = datetime.now(kst).strftime("%Y-%m-%d")
+
+          svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="760"
+            height="330"
+            viewBox="0 0 760 330"
+            role="img"
+            aria-label="{USERNAME} GitHub Contributions"
+          >
+
+            <defs>
+
+              <linearGradient
+                id="background"
+                x1="0"
+                y1="0"
+                x2="1"
+                y2="1"
+              >
+                <stop offset="0%" stop-color="#151b23"/>
+                <stop offset="55%" stop-color="#0d1117"/>
+                <stop offset="100%" stop-color="#0b1510"/>
+              </linearGradient>
+
+              <linearGradient
+                id="numberGradient"
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="70%" stop-color="#d6f6dc"/>
+                <stop offset="100%" stop-color="#8ee49d"/>
+              </linearGradient>
+
+              <radialGradient id="topGlow">
+                <stop
+                  offset="0%"
+                  stop-color="#3fb950"
+                  stop-opacity="0.22"
+                />
+                <stop
+                  offset="100%"
+                  stop-color="#3fb950"
+                  stop-opacity="0"
+                />
+              </radialGradient>
+
+              <radialGradient id="bottomGlow">
+                <stop
+                  offset="0%"
+                  stop-color="#2ea043"
+                  stop-opacity="0.15"
+                />
+                <stop
+                  offset="100%"
+                  stop-color="#2ea043"
+                  stop-opacity="0"
+                />
+              </radialGradient>
+
+              <filter
+                id="shadow"
+                x="-20%"
+                y="-20%"
+                width="140%"
+                height="140%"
+              >
+                <feDropShadow
+                  dx="0"
+                  dy="18"
+                  stdDeviation="22"
+                  flood-color="#000000"
+                  flood-opacity="0.35"
+                />
+              </filter>
+
+            </defs>
+
+
+            <!-- Card Shadow -->
+
+            <rect
+              x="4"
+              y="4"
+              width="752"
+              height="322"
+              rx="28"
+              fill="#000000"
+              opacity="0.25"
+              filter="url(#shadow)"
+            />
+
+
+            <!-- Card Background -->
+
+            <rect
+              x="5"
+              y="5"
+              width="750"
+              height="320"
+              rx="27"
+              fill="url(#background)"
+              stroke="#30363d"
+            />
+
+
+            <!-- Decorative Glows -->
+
+            <circle
+              cx="690"
+              cy="-30"
+              r="190"
+              fill="url(#topGlow)"
+            />
+
+            <circle
+              cx="-40"
+              cy="340"
+              r="180"
+              fill="url(#bottomGlow)"
+            />
+
+
+            <!-- Icon Background -->
+
+            <rect
+              x="34"
+              y="32"
+              width="48"
+              height="48"
+              rx="15"
+              fill="#17202a"
+              stroke="#30363d"
+            />
+
+
+            <!-- Contribution Icon -->
+
+            <rect x="48" y="51" width="5" height="14" rx="2" fill="#26a641"/>
+            <rect x="57" y="44" width="5" height="21" rx="2" fill="#39d353"/>
+            <rect x="66" y="55" width="5" height="10" rx="2" fill="#006d32"/>
+
+
+            <!-- Header -->
+
+            <text
+              x="96"
+              y="52"
+              fill="#f0f6fc"
+              font-size="18"
+              font-weight="700"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              GitHub Contributions
+            </text>
+
+            <text
+              x="96"
+              y="72"
+              fill="#8b949e"
+              font-size="13"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              @{USERNAME} · Last 12 months
+            </text>
+
+
+            <!-- Privacy Badge -->
+
+            <rect
+              x="587"
+              y="35"
+              width="139"
+              height="31"
+              rx="15.5"
+              fill="#12351d"
+              stroke="#2ea043"
+              stroke-opacity="0.7"
+            />
+
+            <text
+              x="656.5"
+              y="55"
+              fill="#b8f2c1"
+              text-anchor="middle"
+              font-size="11"
+              font-weight="700"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              {privacy_badge}
+            </text>
+
+
+            <!-- Main Total -->
+
+            <text
+              x="34"
+              y="181"
+              fill="url(#numberGradient)"
+              font-size="72"
+              font-weight="800"
+              letter-spacing="-3"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              {formatted_total}
+            </text>
+
+            <text
+              x="36"
+              y="215"
+              fill="#f0f6fc"
+              font-size="17"
+              font-weight="700"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              contributions in the last year
+            </text>
+
+            <text
+              x="36"
+              y="239"
+              fill="#8b949e"
+              font-size="13"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              GitHub profile activity
+            </text>
+
+
+            <!-- Recent Grid Title -->
+
+            <text
+              x="500"
+              y="97"
+              fill="#8b949e"
+              font-size="12"
+              font-weight="600"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              Recent activity
+            </text>
+
+
+            <!-- Actual Contribution Grid -->
+
+            {squares_svg}
+
+
+            <!-- Footer Separator -->
+
+            <line
+              x1="34"
+              y1="270"
+              x2="726"
+              y2="270"
+              stroke="#30363d"
+            />
+
+
+            <!-- Green Dot -->
+
+            <circle
+              cx="41"
+              cy="298"
+              r="4"
+              fill="#3fb950"
+            />
+
+
+            <!-- Footer Left -->
+
+            <text
+              x="53"
+              y="302"
+              fill="#8b949e"
+              font-size="12"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              <tspan
+                fill="#c9d1d9"
+                font-weight="700"
+              >
+                {formatted_total}
+              </tspan>
+
+              <tspan>
+                contributions · {privacy_text}
+              </tspan>
+            </text>
+
+
+            <!-- Footer Right -->
+
+            <text
+              x="726"
+              y="302"
+              fill="#6e7681"
+              text-anchor="end"
+              font-size="11"
+              font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif"
+            >
+              Updated {updated_at}
+            </text>
+
+          </svg>
+          '''
+
+          output = Path("assets/contribution-card.svg")
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(svg, encoding="utf-8")
+
+          print(
+              f"Generated contribution card: "
+              f"{formatted_total} contributions "
+              f"({restricted:,} restricted/private)"
+          )
+
+          PY
+
+
+      - name: Commit updated card
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add assets/contribution-card.svg
+
+          if git diff --cached --quiet; then
+            echo "Contribution card is already up to date."
+            exit 0
+          fi
+
+          git commit -m "chore: update contribution card"
+          git push
