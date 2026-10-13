@@ -7,3 +7,9 @@
   <li>Unity, C#, Assembly Definition, Profiler</li>
   <li>Unreal Engine, C++, Blueprint, Model View ViewModel(MVVM)</li>
 </ul>
+
+<h2>Projects</h2>
+<ul>
+  <li><a href="https://store.steampowered.com/app/5058180/BLINDFOLD_Sound_Chase/">BLINDFOLD: Sound Chase - Unity</a></li>
+  <li>PatchNote - Unreal Engine 5</li>
+</ul>
