@@ -11,5 +11,5 @@
 <h2>Projects</h2>
 <ul>
   <li><a href="https://store.steampowered.com/app/5058180/BLINDFOLD_Sound_Chase/">BLINDFOLD: Sound Chase - Unity</a></li>
-  <li>PatchNote - Unreal Engine 5</li>
+  <li>PatchNote - Unreal Engine 4.27 -> 5.2</li>
 </ul>
